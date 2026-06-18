@@ -1,0 +1,20 @@
+{
+  "name": "honai-api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1065.0",
+    "@aws-sdk/s3-request-presigner": "^3.1066.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mssql": "^11.0.1",
+    "multer": "^2.0.2",
+    "tesseract.js": "^7.0.0",
+    "pdf-parse": "^1.1.1"
+  }
+}
