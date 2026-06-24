@@ -13,11 +13,14 @@ const pengajuanStatusRoute = require('./lib/features/pengajuan/data/status');
 const listPengajuanRoute = require('./lib/features/pengajuan/data/listpengajuan');
 
 // MIDDLEWARE
+// MIDDLEWARE
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username'],
 }));
+
+
 app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
