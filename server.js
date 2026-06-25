@@ -11,7 +11,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const pengajuanRoute = require('./lib/features/pengajuan/data/pengajuan');
 const pengajuanStatusRoute = require('./lib/features/pengajuan/data/status');
 const listPengajuanRoute = require('./lib/features/pengajuan/data/listpengajuan');
-const hakAksesRoute = require('./lib/features/parameter/data/hak_akses');
+const hakAksesRoute = require('./lib/features/pengajuan/data/hak_akses');
 
 // MIDDLEWARE
 app.use(cors({
