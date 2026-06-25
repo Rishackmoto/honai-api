@@ -11,6 +11,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const pengajuanRoute = require('./lib/features/pengajuan/data/pengajuan');
 const pengajuanStatusRoute = require('./lib/features/pengajuan/data/status');
 const listPengajuanRoute = require('./lib/features/pengajuan/data/listpengajuan');
+const hakAksesRoute = require('./lib/features/parameter/data/hak_akses');
 
 // MIDDLEWARE
 app.use(cors({
@@ -45,6 +46,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(pengajuanStatusRoute);
 app.use(pengajuanRoute);
 app.use(listPengajuanRoute);
+app.use('/api/parameter/hak-akses', hakAksesRoute);
 
 // TEST
 app.get('/health', (req, res) => {
