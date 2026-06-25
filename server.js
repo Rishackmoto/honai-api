@@ -46,7 +46,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(pengajuanStatusRoute);
 app.use(pengajuanRoute);
 app.use(listPengajuanRoute);
-app.use('/api/pengajuan/hak-akses', hakAksesRoute);
+app.use('/api/parameter/hak-akses', hakAksesRoute);
+app.use('/api/hak-akses', hakAksesRoute); // alias supaya frontend lama tetap jalan
 
 // TEST
 app.get('/health', (req, res) => {
