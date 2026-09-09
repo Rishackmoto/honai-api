@@ -19,6 +19,21 @@ function fixture(hasSurvey = true, options = {}) {
             input(name, type, value) { inputs[name] = value; return this; },
             async query(text) {
                 queries.push({ text, inputs });
+                if (text.includes('SELECT p.stsflag, p.screening_awal, d.foto_ktp')) {
+                    return { recordset: [{ stsflag: options.stage ?? '1', screening_awal: true, foto_ktp: 'test/ktp.png' }] };
+                }
+                if (text.includes('effective_ttd_debitur') && text.includes('SELECT * FROM t_detail_debitur')) {
+                    return { recordsets: [[{ no_ktp: '0000000000000000', nama_debitur: 'UJI', effective_ttd_debitur: 'existing-signature', foto_ktp: 'test/ktp.png' }], [], [], [], [], [], [], [], [], []] };
+                }
+                if (text.includes('SELECT stsflag, screening_awal FROM t_pengajuan')) {
+                    return { recordset: options.missing ? [] : [{ stsflag: options.stage ?? '1', screening_awal: options.screening ?? true }] };
+                }
+                if (text.includes('SELECT slik_data FROM t_pengajuan_slik')) {
+                    return { recordset: options.slik === false ? [] : [{ slik_data: JSON.stringify({ jenis: 'DEBITUR', nama_debitur: 'UJI' }) }] };
+                }
+                if (text.includes('SELECT TOP 1 file_hasil_dukcapil_debitur')) {
+                    return { recordset: options.dukcapil === false ? [] : [{ file_hasil_dukcapil_debitur: 'test/dukcapil.pdf' }] };
+                }
                 if (/SELECT(?: TOP 1)? stsflag\s+FROM t_pengajuan/.test(text)) {
                     return { recordset: options.missing ? [] : [{ stsflag: options.stage ?? '7' }] };
                 }
@@ -52,8 +67,8 @@ function fixture(hasSurvey = true, options = {}) {
     }, { filename });
     return {
         queries, notifications, transactions,
-        async post(endpoint, body, expectedStatus = 200) {
-            const route = module.exports.stack.find(layer => layer.route?.path === endpoint && layer.route.methods.post).route;
+        async post(endpoint, body, expectedStatus = 200, method = 'post') {
+            const route = module.exports.stack.find(layer => layer.route?.path === endpoint && layer.route.methods[method]).route;
             const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(data) { this.body = data; return this; } };
             await route.stack.at(-1).handle({ params: { id: 'TEST' }, body, files: [], get: () => undefined }, res);
             assert.equal(res.statusCode, expectedStatus, JSON.stringify(res.body));
@@ -78,6 +93,43 @@ test('MUK submit enters review, not final decision', async () => {
     await app.post('/api/pengajuan/:id/muk', {});
     assert.equal(app.queries.find(q => /SET stsflag\s*=/.test(q.text)).inputs.stsflag, '7');
     assert.equal(app.notifications[0].targetStsflag, '7');
+});
+
+for (const [decision, status] of [['lanjut', '2'], ['perbaikan', '90'], ['tidak_lanjut', '99']]) {
+    test(`screening admin ${decision} persists verification and returns correct stage`, async () => {
+        const app = fixture();
+        const result = await app.post('/api/pengajuan/verifikasi/:id', { keputusan_screening: decision, status_debitur: true, catatan_admin: 'Catatan uji' });
+        assert.equal(result.stsflag, status);
+        assert.deepEqual(app.transactions, ['begin', 'commit']);
+        assert.equal(app.notifications[0].targetStsflag, status);
+        assert.equal(app.queries.find(q => q.text.includes('INSERT INTO t_verifikasi_dukcapil')).inputs.file_hasil_dukcapil_debitur, 'test/dukcapil.pdf');
+    });
+}
+for (const options of [{ slik: false }, { dukcapil: false }]) {
+    test(`screening cannot continue with missing evidence ${JSON.stringify(options)}`, async () => {
+        const app = fixture(true, options);
+        await app.post('/api/pengajuan/verifikasi/:id', { keputusan_screening: 'lanjut', status_debitur: true }, 400);
+        assert.deepEqual(app.transactions, ['begin', 'rollback']);
+        assert.equal(app.notifications.length, 0);
+        assert.equal(app.queries.some(q => q.text.includes('INSERT INTO t_verifikasi_dukcapil')), false);
+    });
+}
+test('screening requires decision and blocks repeated admin submission', async () => {
+    await fixture().post('/api/pengajuan/verifikasi/:id', { status_debitur: true }, 400);
+    await fixture(true, { stage: '2' }).post('/api/pengajuan/verifikasi/:id', { keputusan_screening: 'lanjut', status_debitur: true }, 409);
+});
+
+test('AO continuation is rejected before admin decision and accepted after stage 2', async () => {
+    const body = { id_pengajuan: 'TEST', jenis_debitur: 'PERORANGAN', stsflag: '3', form_lengkap: true, data_perorangan: { nama_debitur: 'UJI', no_ktp: '0000000000000000' }, data_kredit: { jumlah_pengajuan_kredit: 10000000 } };
+    const blocked = fixture(true, { stage: '1' });
+    await blocked.post('/api/pengajuan/:id', body, 400, 'put');
+    assert.deepEqual(blocked.transactions, ['begin', 'rollback']);
+    assert.equal(blocked.queries.some(q => q.text.includes('DELETE FROM')), false);
+    const allowed = fixture(true, { stage: '2' });
+    await allowed.post('/api/pengajuan/:id', body, 200, 'put');
+    assert.deepEqual(allowed.transactions, ['begin', 'commit']);
+    assert.ok(allowed.queries.some(q => q.text.includes('INSERT INTO t_debitur_data_kredit')));
+    assert.equal(allowed.queries.find(q => q.text.includes('INSERT INTO t_debitur_perorangan')).inputs.ttd_debitur, 'existing-signature');
 });
 
 for (const hasSurvey of [true, false]) {
