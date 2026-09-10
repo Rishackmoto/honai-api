@@ -73,7 +73,7 @@ function fixture(hasSurvey = true, options = {}) {
         async post(endpoint, body, expectedStatus = 200, method = 'post') {
             const route = module.exports.stack.find(layer => layer.route?.path === endpoint && layer.route.methods[method]).route;
             const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(data) { this.body = data; return this; } };
-            await route.stack.at(-1).handle({ params: { id: 'TEST' }, body, files: [], get: () => undefined }, res);
+            await route.stack.at(-1).handle({ params: { id: 'TEST' }, query: method === 'get' ? body : {}, body, files: [], get: () => undefined }, res);
             assert.equal(res.statusCode, expectedStatus, JSON.stringify(res.body));
             return res.body;
         },
@@ -120,6 +120,20 @@ for (const options of [{ slik: false }, { dukcapil: false }]) {
 test('screening requires decision and blocks repeated admin submission', async () => {
     await fixture().post('/api/pengajuan/verifikasi/:id', { status_debitur: true }, 400);
     await fixture(true, { stage: '2' }).post('/api/pengajuan/verifikasi/:id', { keputusan_screening: 'lanjut', status_debitur: true }, 409);
+});
+
+test('FPK list requires an AO and filters ownership with a SQL parameter', async () => {
+    const missing = fixture();
+    await missing.post('/api/pengajuan/listFpk', {}, 400, 'get');
+    assert.equal(missing.queries.length, 0);
+    for (const idAo of ['AO_SATU', 'AO_DUA', "AO' OR 1=1--"]) {
+        const app = fixture();
+        await app.post('/api/pengajuan/listFpk', { id_ao: ` ${idAo} ` }, 200, 'get');
+        const query = app.queries.find(q => q.inputs.id_ao);
+        assert.equal(query.inputs.id_ao, idAo);
+        assert.match(query.text, /AND LTRIM\(RTRIM\(a.id_ao\)\) = @id_ao/);
+        assert.ok(!query.text.includes(idAo));
+    }
 });
 
 test('AO continuation is rejected before admin decision and accepted after stage 2', async () => {
