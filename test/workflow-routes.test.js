@@ -19,6 +19,9 @@ function fixture(hasSurvey = true, options = {}) {
             input(name, type, value) { inputs[name] = value; return this; },
             async query(text) {
                 queries.push({ text, inputs });
+                if (text.includes('FROM t_verifikasi_dukcapil') && /ORDER BY created_at/i.test(text)) {
+                    throw new Error("Invalid column name 'created_at'.");
+                }
                 if (text.includes('SELECT p.stsflag, p.screening_awal, d.foto_ktp')) {
                     return { recordset: [{ stsflag: options.stage ?? '1', screening_awal: true, foto_ktp: 'test/ktp.png' }] };
                 }
