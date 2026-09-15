@@ -12,6 +12,7 @@ const pengajuanRoute = require('./lib/features/pengajuan/data/pengajuan');
 const pengajuanStatusRoute = require('./lib/features/pengajuan/data/status');
 const listPengajuanRoute = require('./lib/features/pengajuan/data/listpengajuan');
 const hakAksesRoute = require('./lib/features/pengajuan/data/hak_akses');
+const dailySales = require('./lib/features/pengajuan/data/daily_sales');
 
 // MIDDLEWARE
 app.use(cors({
@@ -48,6 +49,7 @@ app.use(pengajuanRoute);
 app.use(listPengajuanRoute);
 app.use('/api/parameter/hak-akses', hakAksesRoute);
 app.use('/api/hak-akses', hakAksesRoute); // alias supaya frontend lama tetap jalan
+app.use('/api/daily-sales', dailySales.createRouter(pengajuanRoute));
 
 // TEST
 app.get('/health', (req, res) => {
@@ -64,6 +66,7 @@ app.get('/', (req, res) => {
     if (typeof pengajuanRoute.initializeDatabase === 'function') {
       await pengajuanRoute.initializeDatabase();
     }
+    await dailySales.initializeDatabase(pengajuanRoute);
 
     app.listen(PORT, () => {
       console.log(`Server berjalan di port ${PORT}`);
