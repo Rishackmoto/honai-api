@@ -133,7 +133,18 @@ test('FPK list requires an AO and filters ownership with a SQL parameter', async
         assert.equal(query.inputs.id_ao, idAo);
         assert.match(query.text, /AND LTRIM\(RTRIM\(a.id_ao\)\) = @id_ao/);
         assert.ok(!query.text.includes(idAo));
+        assert.ok(!Object.entries(query.inputs).some(([key, value]) => key.startsWith('stsflag') && value === '90'));
     }
+});
+
+test('AO correction returns to the initial application queue at status 90', async () => {
+    const app = fixture(true, { stage: '2' });
+    const result = await app.post('/api/pengajuan/:id/koreksi', { target_stsflag: '90', catatan_koreksi: 'Perbaiki identitas' });
+    assert.equal(result.stsflag, '90');
+    assert.equal(app.queries.find(q => q.text.includes('SET stsflag = @target_stsflag')).inputs.target_stsflag, '90');
+    const list = fixture();
+    await list.post('/api/pengajuan/list', {}, 200, 'get');
+    assert.ok(list.queries.some(q => Object.values(q.inputs).includes('90')));
 });
 
 test('AO continuation is rejected before admin decision and accepted after stage 2', async () => {
