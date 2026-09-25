@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const {
   dashboardScope,
   pendingStatusesForRole,
+  taskDefinitionsForRole,
+  applyTaskCounts,
   buildMonthlySeries,
-} = require('../lib/features/pengajuan/data/dashboard_notification');
+} = require('../lib/features/pengajuan/data/dashboard_helper');
 
 test('AO dashboard is scoped to own userid', () => {
   const scope = dashboardScope({ userid: 'AO01', jabat: '12', kdcab: '001' });
@@ -20,15 +22,44 @@ test('Admin, Supervisor and Manager use branch scope when branch exists', () => 
   }
 });
 
-test('Direksi and Komisaris use organization scope', () => {
-  assert.equal(dashboardScope({ jabat: '17', kdcab: '001' }).where, '1 = 1');
-  assert.equal(dashboardScope({ jabat: '18', kdcab: '001' }).where, '1 = 1');
+test('branch role without branch is deny-by-default, not organization-wide', () => {
+  for (const jabat of ['13', '14', '15']) {
+    assert.equal(dashboardScope({ userid: 'X', jabat, kdcab: '' }).where, '1 = 0');
+  }
+});
+
+test('Direksi, Komisaris and control roles use organization scope', () => {
+  for (const jabat of ['11', '16', '17', '18', '19']) {
+    assert.equal(dashboardScope({ userid: 'X', jabat, kdcab: '001' }).where, '1 = 1');
+  }
+});
+
+test('unknown role is limited to own AO data instead of all organization data', () => {
+  const scope = dashboardScope({ userid: 'X01', jabat: '77', kdcab: '001' });
+  assert.match(scope.where, /p\.id_ao/);
+  assert.equal(scope.userid, 'X01');
 });
 
 test('role pending statuses are correct for decision makers', () => {
   assert.deepEqual(pendingStatusesForRole('15'), ['7']);
   assert.deepEqual(pendingStatusesForRole('17'), ['9']);
   assert.deepEqual(pendingStatusesForRole('18'), ['11']);
+});
+
+test('task definitions expose role-specific queue menus', () => {
+  assert.equal(taskDefinitionsForRole('12').find((x) => x.stsflag === '5')?.menu, 'Survey Debitur');
+  assert.equal(taskDefinitionsForRole('14').find((x) => x.stsflag === '10')?.label, 'Approval Awal');
+  assert.equal(taskDefinitionsForRole('18')[0]?.label, 'Persetujuan Komisaris');
+});
+
+test('task counts fill missing statuses with zero', () => {
+  const tasks = applyTaskCounts(taskDefinitionsForRole('13'), [
+    { stsflag: '1', total: 3 },
+    { stsflag: '91', total: 1 },
+  ]);
+  assert.equal(tasks.find((x) => x.stsflag === '1')?.count, 3);
+  assert.equal(tasks.find((x) => x.stsflag === '3')?.count, 0);
+  assert.equal(tasks.find((x) => x.stsflag === '91')?.count, 1);
 });
 
 test('monthly series always returns six months and fills missing months', () => {
