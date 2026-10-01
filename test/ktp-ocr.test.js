@@ -31,3 +31,28 @@ test('multiline address ends before identity labels and empty OCR stays empty', 
     assert.equal(result.rt_rw, 'RT 003 / RW 004');
     assert.equal(parser('').nama, '');
 });
+
+
+const spacedText = vm.runInNewContext(source.slice(source.indexOf('function normalizeOcrLine('), source.indexOf("router.post('/api/ktp/scan'")) + '\nspacedKtpOcrText;');
+const page = (words) => ({ blocks: [{ paragraphs: [{ lines: [{ words }] }] }] });
+
+test('OCR word boundaries survive concatenated plain text', () => {
+    const data = page(['Alamat', ':', 'JL.', 'PERAHU', 'BANK', 'SYARIAH'].map(text => ({ text })));
+    data.text = 'Alamat:JL.PERAHUBANKSYARIAH';
+    assert.equal(parser(spacedText(data)).alamat, 'JL. PERAHU BANK SYARIAH');
+});
+
+test('clear visual gaps restore spaces inside merged words without guessing names', () => {
+    let x = 0;
+    const symbols = [...'JAYAPURASELATAN'].map((text, index) => {
+        if (index === 8) x += 15;
+        const bbox = { x0: x, x1: x + 10, y0: 0, y1: 20 };
+        x += 12;
+        return { text, bbox };
+    });
+    const merged = { text: 'JAYAPURASELATAN', symbols };
+    assert.equal(spacedText(page([merged])), 'JAYAPURA SELATAN');
+    assert.equal(spacedText(page([{ text: 'JAYAPURASELATAN' }])), 'JAYAPURASELATAN');
+    assert.equal(spacedText(page([{ text: '0000000101900001', symbols }])), '0000000101900001');
+    assert.equal(spacedText({ text: 'NAMA : ORANG UJI', blocks: null }), 'NAMA : ORANG UJI');
+});
