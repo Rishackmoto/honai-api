@@ -2,6 +2,7 @@ IF OBJECT_ID('dbo.daily_sales_activity', 'U') IS NULL
 BEGIN
   CREATE TABLE dbo.daily_sales_activity (
     id INT IDENTITY(1,1) PRIMARY KEY,
+    bpr_id VARCHAR(20) NOT NULL CONSTRAINT DF_daily_sales_activity_bpr DEFAULT 'ANP',
     userid VARCHAR(30) NOT NULL,
     tanggal DATE NOT NULL,
     jenis_aktivitas NVARCHAR(30) NOT NULL,
@@ -14,8 +15,24 @@ BEGIN
     tanggal_follow_up DATE NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSDATETIME()
   );
-  CREATE INDEX IX_daily_sales_user_date ON dbo.daily_sales_activity(userid, tanggal);
 END;
+
+IF COL_LENGTH('dbo.daily_sales_activity', 'bpr_id') IS NULL
+  EXEC('ALTER TABLE dbo.daily_sales_activity ADD bpr_id VARCHAR(20) NULL');
+
+UPDATE a
+SET a.bpr_id = COALESCE(NULLIF(LTRIM(RTRIM(u.bpr_id)), ''), 'ANP')
+FROM dbo.daily_sales_activity a
+LEFT JOIN dbo.muser u ON u.userid = a.userid
+WHERE a.bpr_id IS NULL OR LTRIM(RTRIM(a.bpr_id)) = '';
+
+IF NOT EXISTS (
+  SELECT 1 FROM sys.indexes
+  WHERE name = 'IX_daily_sales_bpr_user_date'
+    AND object_id = OBJECT_ID('dbo.daily_sales_activity')
+)
+  EXEC('CREATE INDEX IX_daily_sales_bpr_user_date ON dbo.daily_sales_activity(bpr_id, userid, tanggal)');
+
 IF OBJECT_ID('dbo.daily_sales_attachment', 'U') IS NULL
 BEGIN
   CREATE TABLE dbo.daily_sales_attachment (
