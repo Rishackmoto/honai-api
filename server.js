@@ -13,6 +13,7 @@ const pengajuanStatusRoute = require('./lib/features/pengajuan/data/status');
 const listPengajuanRoute = require('./lib/features/pengajuan/data/listpengajuan');
 const hakAksesRoute = require('./lib/features/pengajuan/data/hak_akses');
 const dailySales = require('./lib/features/pengajuan/data/daily_sales');
+const tenantAdminRoute = require('./lib/features/pengajuan/data/tenant_admin');
 
 // MIDDLEWARE
 app.use(cors({
@@ -50,6 +51,7 @@ app.use(listPengajuanRoute);
 app.use('/api/parameter/hak-akses', hakAksesRoute);
 app.use('/api/hak-akses', hakAksesRoute); // alias supaya frontend lama tetap jalan
 app.use('/api/daily-sales', dailySales.createRouter(pengajuanRoute));
+app.use(tenantAdminRoute);
 
 // TEST
 app.get('/health', (req, res) => {
