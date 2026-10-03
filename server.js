@@ -19,7 +19,7 @@ const tenantAdminRoute = require('./lib/features/pengajuan/data/tenant_admin');
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username', 'x-bpr-id'],
 }));
 
 app.use((req, res, next) => {
@@ -27,7 +27,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-userid, x-username'
+    'Content-Type, Authorization, x-userid, x-username, x-bpr-id'
   );
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
 
