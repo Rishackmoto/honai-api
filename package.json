@@ -18,6 +18,7 @@
     "multer": "^2.0.2",
     "pdf-parse": "^1.1.1",
     "tesseract.js": "^7.0.0",
-    "@google-cloud/vision": "^5.3.2"
+    "@google-cloud/vision": "^5.3.2",
+    "google-auth-library": "^11.0.0"
   }
 }
