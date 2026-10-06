@@ -16,6 +16,7 @@ const dailySales = require('./lib/features/pengajuan/data/daily_sales');
 const tenantAdminRoute = require('./lib/features/pengajuan/data/tenant_admin');
 const notificationDeviceRoute = require('./lib/features/pengajuan/data/notification_device');
 const creditScoringRoute = require('./lib/features/pengajuan/data/credit_scoring');
+const backupCenterRoute = require('./lib/features/pengajuan/data/backup_center');
 
 // MIDDLEWARE
 app.use(cors({
@@ -56,6 +57,7 @@ app.use('/api/daily-sales', dailySales.createRouter(pengajuanRoute));
 app.use(tenantAdminRoute);
 app.use(notificationDeviceRoute);
 app.use(creditScoringRoute);
+app.use(backupCenterRoute);
 
 // TEST
 app.get('/health', (req, res) => {
@@ -78,6 +80,9 @@ app.get('/', (req, res) => {
     }
     if (typeof creditScoringRoute.initializeDatabase === 'function') {
       await creditScoringRoute.initializeDatabase();
+    }
+    if (typeof backupCenterRoute.initializeDatabase === 'function') {
+      await backupCenterRoute.initializeDatabase();
     }
 
     app.listen(PORT, () => {
