@@ -16,13 +16,13 @@ const dailySales = require('./lib/features/pengajuan/data/daily_sales');
 const tenantAdminRoute = require('./lib/features/pengajuan/data/tenant_admin');
 const notificationDeviceRoute = require('./lib/features/pengajuan/data/notification_device');
 const creditScoringRoute = require('./lib/features/pengajuan/data/credit_scoring');
-const backupCenterRoute = require('./lib/features/pengajuan/data/backup_center');
+const { sessionMiddleware } = require('./lib/core/security/session_security');
 
 // MIDDLEWARE
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username', 'x-bpr-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username', 'x-bpr-id', 'x-session-token'],
 }));
 
 app.use((req, res, next) => {
@@ -30,7 +30,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.header(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-userid, x-username, x-bpr-id'
+    'Content-Type, Authorization, x-userid, x-username, x-bpr-id, x-session-token'
   );
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
 
@@ -43,6 +43,10 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Security Pass 1: validasi token sesi untuk setiap request yang membawa x-userid.
+// Endpoint login/logout dikecualikan di middleware agar siklus sesi dapat dibentuk/dicabut.
+app.use(sessionMiddleware());
 
 // UPLOAD GAMBAR
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -57,7 +61,6 @@ app.use('/api/daily-sales', dailySales.createRouter(pengajuanRoute));
 app.use(tenantAdminRoute);
 app.use(notificationDeviceRoute);
 app.use(creditScoringRoute);
-app.use(backupCenterRoute);
 
 // TEST
 app.get('/health', (req, res) => {
@@ -80,9 +83,6 @@ app.get('/', (req, res) => {
     }
     if (typeof creditScoringRoute.initializeDatabase === 'function') {
       await creditScoringRoute.initializeDatabase();
-    }
-    if (typeof backupCenterRoute.initializeDatabase === 'function') {
-      await backupCenterRoute.initializeDatabase();
     }
 
     app.listen(PORT, () => {
