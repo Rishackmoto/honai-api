@@ -17,36 +17,39 @@ const tenantAdminRoute = require('./lib/features/pengajuan/data/tenant_admin');
 const notificationDeviceRoute = require('./lib/features/pengajuan/data/notification_device');
 const creditScoringRoute = require('./lib/features/pengajuan/data/credit_scoring');
 const { sessionMiddleware } = require('./lib/core/security/session_security');
+const { corsOptions, securityHeadersMiddleware, corsErrorHandler } = require('./lib/core/security/http_security');
+const { createHonaiRateLimiters } = require('./lib/core/security/rate_limit');
 
-// MIDDLEWARE
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-userid', 'x-username', 'x-bpr-id', 'x-session-token'],
-}));
+// MIDDLEWARE - Security Pass 3
+// Railway berada di belakang reverse proxy. Satu trusted proxy diperlukan agar
+// req.ip dan deteksi HTTPS memakai alamat/protokol klien yang benar.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-userid, x-username, x-bpr-id, x-session-token'
-  );
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+app.use(securityHeadersMiddleware());
 
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
+const honaiCorsOptions = corsOptions();
+app.use(cors(honaiCorsOptions));
 
-  next();
-});
+const { login: loginRateLimiter, api: apiRateLimiter, upload: uploadRateLimiter } = createHonaiRateLimiters();
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Login dibatasi terpisah untuk menahan brute-force tanpa mengganggu trafik
+// normal aplikasi. API limiter umum melindungi backend/DB dari request burst.
+app.use('/api/login', loginRateLimiter);
+app.use('/api', apiRateLimiter);
 
-// Security Pass 1: validasi token sesi untuk setiap request yang membawa x-userid.
-// Endpoint login/logout dikecualikan di middleware agar siklus sesi dapat dibentuk/dicabut.
+// Payload JSON HONAI seharusnya berupa data/form, bukan file. File wajib lewat
+// multipart upload sehingga limit JSON dapat dibuat jauh lebih kecil dari 50 MB.
+const jsonLimit = process.env.HONAI_JSON_BODY_LIMIT || '5mb';
+app.use(express.json({ limit: jsonLimit }));
+app.use(express.urlencoded({ extended: true, limit: jsonLimit }));
+
+// Security Pass 2: seluruh endpoint /api/* protected kecuali allowlist publik.
 app.use(sessionMiddleware());
+
+// Upload limiter dijalankan setelah sesi tervalidasi supaya key user dapat
+// dipercaya. Middleware ini hanya menghitung request multipart POST/PUT/PATCH.
+app.use('/api', uploadRateLimiter);
 
 // UPLOAD GAMBAR
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -69,6 +72,42 @@ app.get('/health', (req, res) => {
 
 app.get('/', (req, res) => {
   res.send('API HONAI berjalan...');
+});
+
+
+// CORS denial menggunakan error middleware agar response tetap JSON dan tidak
+// membocorkan stack trace/default Express error page.
+app.use(corsErrorHandler);
+
+// Error boundary terakhir: jangan kirim stack trace / halaman error Express ke
+// client production. Error lengkap tetap dicatat di log Railway.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error('HONAI UNHANDLED API ERROR:', err);
+
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      code: 'BODY_TOO_LARGE',
+      message: 'Ukuran request terlalu besar.',
+    });
+  }
+
+  if (err instanceof SyntaxError && Object.prototype.hasOwnProperty.call(err, 'body')) {
+    return res.status(400).json({
+      success: false,
+      code: 'INVALID_JSON',
+      message: 'Format JSON tidak valid.',
+    });
+  }
+
+  return res.status(Number(err?.statusCode || err?.status || 500)).json({
+    success: false,
+    code: err?.code || 'INTERNAL_ERROR',
+    message: Number(err?.statusCode || err?.status || 500) >= 500
+      ? 'Terjadi gangguan pada HONAI API. Silakan coba kembali.'
+      : (err?.message || 'Request tidak dapat diproses.'),
+  });
 });
 
 // JALANKAN SERVER
