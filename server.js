@@ -19,12 +19,16 @@ const creditScoringRoute = require('./lib/features/pengajuan/data/credit_scoring
 const { sessionMiddleware } = require('./lib/core/security/session_security');
 const { corsOptions, securityHeadersMiddleware, corsErrorHandler } = require('./lib/core/security/http_security');
 const { createHonaiRateLimiters } = require('./lib/core/security/rate_limit');
+const { createPerformanceMonitor } = require('./lib/core/network/performance_monitor');
 
 // MIDDLEWARE - Security Pass 3
 // Railway berada di belakang reverse proxy. Satu trusted proxy diperlukan agar
 // req.ip dan deteksi HTTPS memakai alamat/protokol klien yang benar.
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+
+// Performance Pass 1: opt-in latency logs, before API middlewares/routes.
+app.use(createPerformanceMonitor());
 
 app.use(securityHeadersMiddleware());
 
