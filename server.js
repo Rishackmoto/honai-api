@@ -49,7 +49,27 @@ app.use(express.json({ limit: jsonLimit }));
 app.use(express.urlencoded({ extended: true, limit: jsonLimit }));
 
 // Security Pass 2: seluruh endpoint /api/* protected kecuali allowlist publik.
-app.use(sessionMiddleware());
+// Performance Pass 3: measure security middleware independently of route work.
+// Preserve sessionMiddleware's original allowlist, checks and error handling.
+const honaiSessionGuard = sessionMiddleware();
+app.use((req, res, next) => {
+  if (process.env.HONAI_PERF_LOG !== 'true') return honaiSessionGuard(req, res, next);
+  const started = process.hrtime.bigint();
+  const done = (err) => {
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    const routeGroup = /^\/api\/pengajuan\/[^/]+$/.test(req.path)
+      ? 'draft-detail-or-pengajuan'
+      : req.path === '/api/pengajuan/listCheckKelengkapan' ? 'checklist'
+      : req.path.startsWith('/api/dashboard/') ? 'dashboard'
+      : req.path.startsWith('/api/notifications') ? 'notifications'
+      : req.path === '/api/login' ? 'login' : 'other';
+    if (ms >= Number(process.env.HONAI_PERF_SLOW_MS || 800) / 4 || routeGroup !== 'other') {
+      console.log(`[HONAI PERF3] group=${routeGroup} stage=session ms=${ms.toFixed(1)}`);
+    }
+    next(err);
+  };
+  try { return honaiSessionGuard(req, res, done); } catch (err) { return done(err); }
+});
 
 // Upload limiter dijalankan setelah sesi tervalidasi supaya key user dapat
 // dipercaya. Middleware ini hanya menghitung request multipart POST/PUT/PATCH.
